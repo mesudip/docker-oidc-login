@@ -45,18 +45,7 @@ runs:
           -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
           "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}")"
 
-        token="$(
-          RESPONSE="${response}" python3 - <<'PY'
-import json
-import os
-
-payload = json.loads(os.environ["RESPONSE"])
-token = payload.get("value")
-if not isinstance(token, str) or not token:
-    raise SystemExit(1)
-print(token)
-PY
-        )"
+        token="$(RESPONSE="${response}" python3 -c 'import json, os; payload = json.loads(os.environ["RESPONSE"]); token = payload.get("value"); print(token if isinstance(token, str) and token else ""); raise SystemExit(0 if isinstance(token, str) and token else 1)')"
 
         if [ -z "${token}" ]; then
           echo "Failed to request a GitHub OIDC token." >&2
