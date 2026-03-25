@@ -1,4 +1,4 @@
-# docker-registry-login
+# docker-oidc-login
 
 GitHub Action for logging in to a Docker registry with a GitHub Actions OIDC token.
 
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Log in to registry with GitHub OIDC
-        uses: mesudip/docker-registry-login@v1
+        uses: mesudip/docker-oidc-login@v1
         with:
           registry: ${{ env.REGISTRY }}
           audience: ${{ env.REGISTRY }}
