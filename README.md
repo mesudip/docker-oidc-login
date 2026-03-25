@@ -49,6 +49,7 @@ jobs:
 | `registry` | Yes | | Registry host to log in to |
 | `audience` | No | `registry` | OIDC audience to request from GitHub |
 | `username` | No | `github-actions` | Username passed to `docker login` |
+| `min-token-ttl-seconds` | No | `120` | Warn when OIDC token TTL is below this threshold |
 
 ## Failure mode
 
@@ -66,3 +67,4 @@ permissions:
 - This action does not print the token or its claims.
 - Your registry must validate GitHub's OIDC JWTs itself.
 - GitHub's OIDC token is short-lived, typically around 5 minutes, so log in immediately before `docker push` rather than before a long `docker build`.
+- The action prints token timing (`now`, `iat`, `exp`, `ttl`) and warns for low or already-expired TTL.

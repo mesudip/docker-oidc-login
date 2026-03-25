@@ -13,6 +13,10 @@ inputs:
     description: Username passed to docker login
     required: false
     default: github-actions
+  min-token-ttl-seconds:
+    description: Warn if token TTL is below this many seconds
+    required: false
+    default: "120"
 
 runs:
   using: composite
@@ -55,6 +59,66 @@ runs:
 
         echo "::add-mask::${token}"
         echo "token=${token}" >> "${GITHUB_OUTPUT}"
+
+    - name: Docker login
+    - name: Validate token freshness
+      shell: bash
+      env:
+        TOKEN: ${{ steps.oidc.outputs.token }}
+        MIN_TTL_SECONDS: ${{ inputs.min-token-ttl-seconds }}
+      run: |
+        python3 - <<'PY'
+        import base64
+        import json
+        import os
+        import sys
+        import time
+        from datetime import datetime, timezone
+
+        token = os.environ.get("TOKEN", "")
+        min_ttl_raw = os.environ.get("MIN_TTL_SECONDS", "120")
+        try:
+            min_ttl = int(min_ttl_raw)
+        except ValueError:
+            print(f"::warning::Invalid min-token-ttl-seconds '{min_ttl_raw}', using 120")
+            min_ttl = 120
+
+        parts = token.split(".")
+        if len(parts) < 2:
+            print("::error::OIDC token is malformed (expected JWT)")
+            sys.exit(1)
+
+        payload_b64 = parts[1] + "=" * (-len(parts[1]) % 4)
+        try:
+            claims = json.loads(base64.urlsafe_b64decode(payload_b64.encode()).decode())
+        except Exception as exc:
+            print(f"::error::Failed to decode OIDC token claims: {exc}")
+            sys.exit(1)
+
+        now = int(time.time())
+        iat = int(claims.get("iat", 0))
+        exp = int(claims.get("exp", 0))
+        ttl = exp - now
+
+        now_utc = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        iat_utc = datetime.fromtimestamp(iat, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC") if iat else "missing"
+        exp_utc = datetime.fromtimestamp(exp, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC") if exp else "missing"
+
+        print(f"OIDC token timing: now={now_utc}, iat={iat_utc}, exp={exp_utc}, ttl={ttl}s")
+
+        if exp <= 0:
+            print("::error::OIDC token is missing a valid exp claim")
+            sys.exit(1)
+
+        if ttl <= 0:
+            print("::warning::OIDC token is already expired before docker login")
+            print("::warning::Check workflow delays and runner/server clock skew")
+            sys.exit(0)
+
+        if ttl < min_ttl:
+            print(f"::warning::OIDC token TTL is low ({ttl}s), below threshold ({min_ttl}s)")
+            print("::warning::Push may fail if upload takes too long; consider token exchange/server session auth")
+        PY
 
     - name: Docker login
       shell: bash
