@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Log in to registry with GitHub OIDC
-        uses: mesudip/docker-registry-login@main
+        uses: mesudip/docker-registry-login@v1
         with:
           registry: ${{ env.REGISTRY }}
           audience: ${{ env.REGISTRY }}
