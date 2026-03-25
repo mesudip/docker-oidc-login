@@ -27,15 +27,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build image
+        run: |
+          docker build -t "$IMAGE" .
+
       - name: Log in to registry with GitHub OIDC
         uses: mesudip/docker-oidc-login@v1
         with:
           registry: ${{ env.REGISTRY }}
           audience: ${{ env.REGISTRY }}
 
-      - name: Build and push
+      - name: Push image
         run: |
-          docker build -t "$IMAGE" .
           docker push "$IMAGE"
 ```
 
@@ -62,3 +65,4 @@ permissions:
 - The token is masked before use.
 - This action does not print the token or its claims.
 - Your registry must validate GitHub's OIDC JWTs itself.
+- For long builds, log in immediately before `docker push` rather than before `docker build`.
