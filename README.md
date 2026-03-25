@@ -65,4 +65,4 @@ permissions:
 - The token is masked before use.
 - This action does not print the token or its claims.
 - Your registry must validate GitHub's OIDC JWTs itself.
-- For long builds, log in immediately before `docker push` rather than before `docker build`.
+- GitHub's OIDC token is short-lived, typically around 5 minutes, so log in immediately before `docker push` rather than before a long `docker build`.
