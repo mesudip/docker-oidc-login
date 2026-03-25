@@ -60,7 +60,6 @@ runs:
         echo "::add-mask::${token}"
         echo "token=${token}" >> "${GITHUB_OUTPUT}"
 
-    - name: Docker login
     - name: Validate token freshness
       shell: bash
       env:
