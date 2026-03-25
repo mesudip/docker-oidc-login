@@ -1,0 +1,79 @@
+name: Docker Registry Login
+description: Request a GitHub Actions OIDC token and use it to log in to a Docker registry.
+
+inputs:
+  registry:
+    description: Registry host to log in to, for example registry.example.com
+    required: true
+  audience:
+    description: OIDC audience to request. Defaults to the registry input.
+    required: false
+    default: ""
+  username:
+    description: Username passed to docker login
+    required: false
+    default: github-actions
+
+runs:
+  using: composite
+  steps:
+    - name: Check GitHub OIDC availability
+      shell: bash
+      run: |
+        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+          echo "GitHub OIDC token access is not available for this job." >&2
+          echo "Add the following permissions to your workflow or job:" >&2
+          echo "permissions:" >&2
+          echo "  id-token: write" >&2
+          echo "  contents: read" >&2
+          exit 1
+        fi
+
+    - name: Request GitHub OIDC token
+      id: oidc
+      shell: bash
+      env:
+        INPUT_AUDIENCE: ${{ inputs.audience }}
+        INPUT_REGISTRY: ${{ inputs.registry }}
+      run: |
+        audience="${INPUT_AUDIENCE}"
+        if [ -z "${audience}" ]; then
+          audience="${INPUT_REGISTRY}"
+        fi
+
+        response="$(curl -fsSL \
+          -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}")"
+
+        token="$(
+          RESPONSE="${response}" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["RESPONSE"])
+token = payload.get("value")
+if not isinstance(token, str) or not token:
+    raise SystemExit(1)
+print(token)
+PY
+        )"
+
+        if [ -z "${token}" ]; then
+          echo "Failed to request a GitHub OIDC token." >&2
+          echo "Response: ${response}" >&2
+          exit 1
+        fi
+
+        echo "::add-mask::${token}"
+        echo "token=${token}" >> "${GITHUB_OUTPUT}"
+
+    - name: Docker login
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        USERNAME: ${{ inputs.username }}
+        TOKEN: ${{ steps.oidc.outputs.token }}
+      run: |
+        printf '%s' "${TOKEN}" | docker login "${REGISTRY}" \
+          --username "${USERNAME}" \
+          --password-stdin
